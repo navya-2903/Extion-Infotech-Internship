@@ -1,0 +1,84 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from apyori import apriori
+import networkx as nx
+from matplotlib.colors import LinearSegmentedColormap
+
+class MarketBasketAnalysis:
+    def __init__(self, file_path, min_support=0.01, min_confidence=0.5):
+        self.file_path = file_path
+        self.min_support = min_support
+        self.min_confidence = min_confidence
+        self.df = None
+        self.rules_list = []
+        plt.ion()  # Enable interactive mode
+        
+    def load_data(self):
+        self.df = pd.read_excel(self.file_path)
+        self.df = self.df.dropna().drop_duplicates()
+        self.df = self.df[~self.df['InvoiceNo'].astype(str).str.startswith('C')]
+        self.df = self.df[(self.df['Quantity'] > 0) & (self.df['UnitPrice'] > 0)]
+        self.visualize_data()
+        
+    def visualize_data(self):
+        plt.figure(figsize=(15, 10))
+        
+        # Top products
+        plt.subplot(2, 2, 1)
+        top_products = self.df.groupby('Description')['Quantity'].sum().nlargest(10)
+        sns.barplot(x=top_products.values, y=top_products.index)
+        plt.title('Top Products')
+        
+        # Monthly orders
+        plt.subplot(2, 2, 2)
+        monthly = self.df.groupby(pd.to_datetime(self.df['InvoiceDate']).dt.strftime('%Y-%m'))['InvoiceNo'].nunique()
+        monthly.plot(kind='line', marker='o')
+        plt.title('Monthly Orders')
+        
+        plt.tight_layout()
+        plt.show(block=False)  # Show without blocking
+        
+    def mine_rules(self):
+        transactions = self.df.groupby('InvoiceNo')['StockCode'].agg(lambda x: list(x.astype(str))).tolist()
+        rules = list(apriori(transactions, min_support=self.min_support, min_confidence=self.min_confidence))
+        
+        self.rules_list = []
+        for rule in rules:
+            for item in rule.ordered_statistics:
+                self.rules_list.append({
+                    'antecedent': list(item.items_base),
+                    'consequent': list(item.items_add),
+                    'confidence': item.confidence,
+                    'lift': item.lift
+                })
+        
+        self.visualize_rules()
+        
+    def visualize_rules(self):
+        G = nx.DiGraph()
+        top_rules = sorted(self.rules_list, key=lambda x: x['confidence'], reverse=True)[:10]
+        
+        plt.figure(figsize=(12, 8))
+        for rule in top_rules:
+            for a in rule['antecedent']:
+                for c in rule['consequent']:
+                    G.add_edge(a, c, weight=rule['confidence'])
+        
+        pos = nx.spring_layout(G)
+        nx.draw(G, pos, with_labels=True, node_color='lightblue', 
+                node_size=2000, font_size=8, arrows=True)
+        plt.title("Association Rules Network")
+        plt.show(block=False)  # Show without blocking
+
+def main():
+    # Use the correct file path from your original code
+    file_path = r"C:\Users\Shreya\OneDrive\Desktop\BCA 3 SEM\Internship Projects\EXTION INFOTECH\Online Retail.xlsx"
+    analyzer = MarketBasketAnalysis(file_path)
+    analyzer.load_data()
+    analyzer.mine_rules()
+    plt.show(block=True)  # Keep all plots open
+
+if __name__ == "__main__":
+    main()
