@@ -1,0 +1,68 @@
+# Import necessary libraries
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from surprise import Dataset, Reader, KNNBasic
+from surprise.model_selection import train_test_split
+from surprise import accuracy
+
+# Specify the path to the dataset file
+file_path = r'C:\Users\Shreya\OneDrive\Desktop\BCA 3 SEM\Internship Projects\EXTION INFOTECH\ml-100k\u.data'
+
+# Load the dataset into a DataFrame
+ratings = pd.read_csv(file_path, sep='\t', header=None, names=['user_id', 'item_id', 'rating', 'timestamp'])
+
+# Display the first few rows of the DataFrame
+print(ratings.head())
+
+# Check the structure and data types
+print(ratings.info())
+
+# Get summary statistics
+print(ratings.describe())
+
+# Check for missing values
+print(ratings.isnull().sum())
+
+# Convert timestamp to datetime
+ratings['timestamp'] = pd.to_datetime(ratings['timestamp'], unit='s')
+
+# Distribution of ratings
+sns.histplot(ratings['rating'], bins=5, kde=True)
+plt.title('Distribution of Ratings')
+plt.xlabel('Rating')
+plt.ylabel('Frequency')
+plt.show()
+
+# Create user-item interaction matrix
+user_item_matrix = ratings.pivot(index='user_id', columns='item_id', values='rating')
+
+# Display the first few rows of the user-item interaction matrix
+print(user_item_matrix.head())
+
+# Save the user-item interaction matrix to a CSV file
+user_item_matrix.to_csv('user_item_matrix.csv', index=True)
+
+# Prepare data for the Surprise library
+reader = Reader(rating_scale=(1, 5))
+data = Dataset.load_from_df(ratings[['user_id', 'item_id', 'rating']], reader)
+
+# Split the dataset into training and testing sets
+trainset, testset = train_test_split(data, test_size=0.2)
+
+# Use KNN for collaborative filtering (User -Based)
+algo = KNNBasic(sim_options={'user_based': True})
+algo.fit(trainset)
+
+# Make predictions
+predictions = algo.test(testset)
+
+# Calculate and print RMSE
+rmse = accuracy.rmse(predictions)
+print(f'RMSE: {rmse}')
+
+# Example: Making a prediction for a specific user and item
+user_id = 1  # Example user ID
+item_id = 50  # Example item ID
+predicted_rating = algo.predict(user_id, item_id)
+print(f'Predicted rating for user {user_id} on item {item_id}: {predicted_rating.est:.2f}') 
